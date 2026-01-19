@@ -3,12 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>最速判別</title>
+    <title>最速判別＋期待割</title>
     <style>
         :root {
             --bg-color: #121212;
             --card-bg: #1e1e1e;
             --accent-color: #00ff00;
+            --error-color: #ff4444;
             --blue-gradient: linear-gradient(90deg, #007bff, #00c6ff);
         }
         body {
@@ -32,42 +33,66 @@
         #resultArea {
             flex: 1;
             overflow-y: auto;
-            margin-bottom: 10px;
+            margin-bottom: 5px;
         }
         table { width: 100%; border-collapse: collapse; background: var(--card-bg); border-radius: 12px; }
-        td { padding: 10px 8px; border-bottom: 1px solid #333; }
-        .setting-name { width: 50px; font-weight: bold; font-size: 13px; color: #aaa; }
-        .bar-container { flex: 1; background: #333; height: 16px; border-radius: 8px; overflow: hidden; }
+        td { padding: 8px; border-bottom: 1px solid #333; vertical-align: middle; }
+        .setting-name { width: 85px; font-weight: bold; font-size: 11px; color: #aaa; line-height: 1.2; }
+        .setting-name b { font-size: 13px; color: #fff; display: block; }
+        .bar-container { flex: 1; background: #333; height: 14px; border-radius: 7px; overflow: hidden; }
         .bar { height: 100%; background: var(--blue-gradient); transition: width 0.3s ease-out; }
-        .percent { width: 65px; font-size: 16px; font-weight: bold; color: var(--accent-color); text-align: right; }
+        .percent { width: 60px; font-size: 15px; font-weight: bold; color: var(--accent-color); text-align: right; }
+
+        /* 2. 期待機械割・期待枚数表示 */
+        .payout-card {
+            background: #2a2a2a;
+            padding: 10px 12px;
+            border-radius: 12px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-left: 4px solid #007bff;
+        }
+        .payout-info { display: flex; flex-direction: column; }
+        .payout-label { font-size: 10px; color: #bbb; margin-bottom: 2px; }
+        .payout-value { font-size: 22px; font-weight: bold; color: #fff; }
+        .payout-unit { font-size: 12px; margin-left: 1px; color: #888; }
+        
+        .diff-info { text-align: right; }
+        .diff-label { font-size: 10px; color: #bbb; margin-bottom: 2px; }
+        .diff-value { font-size: 22px; font-weight: bold; }
+        .diff-unit { font-size: 12px; margin-left: 1px; color: #888; }
+        .plus { color: var(--accent-color); }
+        .minus { color: var(--error-color); }
 
         /* 中間の数値モニタ */
         .monitor {
             display: flex; justify-content: space-around;
-            background: #252525; padding: 12px; border-radius: 12px; margin-bottom: 15px;
+            background: #252525; padding: 10px; border-radius: 12px; margin-bottom: 10px;
         }
-        .monitor div { text-align: center; }
-        .monitor span { display: block; font-size: 10px; color: #888; }
-        .monitor b { font-size: 20px; }
+        .monitor div { text-align: center; min-width: 60px; }
+        .monitor span { display: block; font-size: 10px; color: #888; margin-bottom: 2px; }
+        .monitor b { font-size: 18px; line-height: 1; }
+        .monitor small { display: block; font-size: 10px; color: var(--accent-color); margin-top: 2px; }
 
-        /* 2. 機種選択（下から2番目・1行固定） */
+        /* 3. 機種選択 */
         .mode-selector {
-            display: flex;
-            justify-content: space-between;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
             gap: 4px;
-            margin-bottom: 10px;
+            margin-bottom: 8px;
             width: 100%;
         }
         .mode-btn {
-            flex: 1; /* 幅を均等にパーセント分配 */
-            white-space: nowrap; /* 改行防止 */
+            white-space: nowrap;
             padding: 12px 0;
             border: 1px solid #444;
             background: #333;
             color: #fff;
             border-radius: 8px;
             font-weight: bold;
-            font-size: 11px;
+            font-size: 10px;
             cursor: pointer;
         }
         .mode-btn.active {
@@ -75,14 +100,14 @@
             border-color: #007bff;
         }
 
-        /* 3. 入力欄（最下部） */
-        .input-wrapper { margin-bottom: 10px; }
+        /* 4. 入力欄（最下部） */
+        .input-wrapper { margin-bottom: 5px; }
         #masterInput {
             width: 100%;
-            padding: 15px;
-            font-size: 36px;
+            padding: 12px;
+            font-size: 32px;
             text-align: center;
-            letter-spacing: 6px;
+            letter-spacing: 4px;
             border: 2px solid #444;
             border-radius: 16px;
             background: #000;
@@ -90,76 +115,155 @@
             inputmode: numeric;
             box-sizing: border-box;
         }
-        .guide { text-align: center; font-size: 11px; color: #666; margin-bottom: 5px; }
     </style>
 </head>
 <body>
 
 <div class="container">
+    <!-- 上部：判別結果 -->
     <div id="resultArea">
-        <div class="guide" id="statusLabel">機種を選択して入力</div>
+        <div class="guide" id="statusLabel" style="text-align: center; font-size: 11px; color: #666; margin-bottom: 5px;">機種を選択して入力</div>
         <div id="resultTable"></div>
     </div>
 
+    <!-- 期待機械割・期待枚数表示 -->
+    <div class="payout-card">
+        <div class="payout-info">
+            <div class="payout-label">期待機械割</div>
+            <div class="payout-value"><span id="avgPayout">---</span><span class="payout-unit">%</span></div>
+        </div>
+        <div class="diff-info">
+            <div class="diff-label">期待収支/時間</div>
+            <div class="diff-value" id="diffValue">---<span class="diff-unit">枚</span></div>
+        </div>
+    </div>
+
+    <!-- 中部：現在の入力数値モニタ -->
     <div class="monitor">
-        <div><span>G数</span><b id="dispG">0</b></div>
-        <div><span>BIG</span><b id="dispB">0</b></div>
-        <div><span>REG</span><b id="dispR">0</b></div>
+        <div>
+            <span>G数</span>
+            <b id="dispG">0</b>
+            <small>&nbsp;</small>
+        </div>
+        <div>
+            <span>BIG</span>
+            <b id="dispB">0</b>
+            <small id="probB">1/--.-</small>
+        </div>
+        <div>
+            <span>REG</span>
+            <b id="dispR">0</b>
+            <small id="probR">1/--.-</small>
+        </div>
     </div>
 
+    <!-- 下部：機種選択 -->
     <div class="mode-selector">
-        <button id="btn-mr" class="mode-btn active" onclick="setMode('mr')">ミスター</button>
-        <button id="btn-my5" class="mode-btn" onclick="setMode('my5')">マイⅤ</button>
-        <button id="btn-hp3" class="mode-btn" onclick="setMode('hp3')">ハッピー</button>
+        <!-- 上段：その他 -->
+        <button id="btn-im" class="mode-btn" onclick="setMode('im')">アイム</button>
+        <button id="btn-ultra" class="mode-btn" onclick="setMode('ultra')">ウルトラ</button>
         <button id="btn-fn2" class="mode-btn" onclick="setMode('fn2')">ファンキー</button>
+        <!-- 下段：よく使う機種 -->
+        <button id="btn-my5" class="mode-btn" onclick="setMode('my5')">マイⅤ</button>
+        <button id="btn-mr" class="mode-btn" onclick="setMode('mr')">ミスター</button>
+        <button id="btn-hp3" class="mode-btn" onclick="setMode('hp3')">ハッピー</button>
     </div>
 
+    <!-- 最下部：入力エリア -->
     <div class="input-wrapper">
-        <input type="tel" id="masterInput" maxlength="8" placeholder="00000000" oninput="processInput()">
+        <input type="tel" id="masterInput" maxlength="8" placeholder="G4桁+B+R" 
+               onfocus="handleFocus()" onblur="handleBlur()" oninput="processInput()">
     </div>
 </div>
 
 <script>
 const masterData = {
+    im: { name: "ネオアイムジャグラーEX", config: [
+        {s:1, b:273.1, r:439.8, py:97.0}, {s:2, b:269.7, r:399.6, py:98.0}, {s:3, b:269.7, r:331.0, py:99.5},
+        {s:4, b:259.0, r:315.1, py:101.1}, {s:5, b:259.0, r:255.0, py:103.3}, {s:6, b:255.0, r:255.0, py:105.5}
+    ]},
+    ultra: { name: "ウルトラミラクルジャグラー", config: [
+        {s:1, b:267.5, r:425.6, py:97.0}, {s:2, b:261.1, r:402.1, py:98.1}, {s:3, b:256.0, r:350.5, py:99.9},
+        {s:4, b:242.7, r:322.8, py:102.9}, {s:5, b:233.2, r:297.9, py:105.8}, {s:6, b:216.3, r:277.7, py:108.4}
+    ]},
     mr: { name: "ミスタージャグラー", config: [
-        {s:1, b:268.6, r:374.5}, {s:2, b:267.5, r:354.2}, {s:3, b:260.1, r:331.0},
-        {s:4, b:249.2, r:291.3}, {s:5, b:240.9, r:257.0}, {s:6, b:237.4, r:237.4}
+        {s:1, b:268.6, r:374.5, py:97.3}, {s:2, b:267.5, r:354.2, py:98.4}, {s:3, b:260.1, r:331.0, py:100.2},
+        {s:4, b:249.2, r:291.3, py:103.1}, {s:5, b:240.9, r:257.0, py:105.7}, {s:6, b:237.4, r:237.4, py:108.3}
     ]},
     my5: { name: "マイジャグラーⅤ", config: [
-        {s:1, b:273.1, r:409.6}, {s:2, b:270.8, r:385.5}, {s:3, b:266.4, r:336.1},
-        {s:4, b:254.0, r:290.0}, {s:5, b:240.1, r:268.6}, {s:6, b:229.1, r:229.1}
+        {s:1, b:273.1, r:409.6, py:97.0}, {s:2, b:270.8, r:385.5, py:98.0}, {s:3, b:266.4, r:336.1, py:99.9},
+        {s:4, b:254.0, r:290.0, py:102.8}, {s:5, b:240.1, r:268.6, py:105.3}, {s:6, b:229.1, r:229.1, py:109.4}
     ]},
     hp3: { name: "ハッピーVⅢ", config: [
-        {s:1, b:273.1, r:397.2}, {s:2, b:270.8, r:362.1}, {s:3, b:263.2, r:332.7},
-        {s:4, b:254.0, r:300.6}, {s:5, b:239.2, r:273.1}, {s:6, b:226.0, r:256.0}
+        {s:1, b:273.1, r:397.2, py:97.0}, {s:2, b:270.8, r:362.1, py:98.1}, {s:3, b:263.2, r:332.7, py:99.9},
+        {s:4, b:254.0, r:300.6, py:102.9}, {s:5, b:239.2, r:273.1, py:105.8}, {s:6, b:226.0, r:256.0, py:108.4}
     ]},
     fn2: { name: "ファンキー2", config: [
-        {s:1, b:266.4, r:439.8}, {s:2, b:259.0, r:407.1}, {s:3, b:256.0, r:366.1},
-        {s:4, b:249.2, r:322.8}, {s:5, b:240.9, r:299.3}, {s:6, b:219.9, r:262.1}
+        {s:1, b:266.4, r:439.8, py:97.0}, {s:2, b:259.0, r:407.1, py:98.5}, {s:3, b:256.0, r:366.1, py:99.8},
+        {s:4, b:249.2, r:322.8, py:102.0}, {s:5, b:240.9, r:299.3, py:104.3}, {s:6, b:219.9, r:262.1, py:109.0}
     ]}
 };
 
-let currentMode = 'mr';
+let currentMode = 'my5'; // 初期設定をマイVに
+let lastValue = "";
+
+function handleFocus() {
+    const input = document.getElementById('masterInput');
+    lastValue = input.value;
+    input.value = "";
+}
+
+function handleBlur() {
+    const input = document.getElementById('masterInput');
+    if (input.value === "") {
+        input.value = lastValue;
+    }
+}
 
 function setMode(mode) {
     currentMode = mode;
     Object.keys(masterData).forEach(k => {
-        document.getElementById('btn-' + k).classList.toggle('active', k === mode);
+        const btn = document.getElementById('btn-' + k);
+        if(btn) btn.classList.toggle('active', k === mode);
     });
     document.getElementById('statusLabel').innerText = masterData[mode].name + " 判別中";
     processInput();
 }
 
+function parseInput(val) {
+    const len = val.length;
+    let g = 0, b = 0, r = 0;
+    if (len < 6) return null;
+    g = parseInt(val.substring(0, 4));
+
+    if (len === 6) {
+        b = parseInt(val.substring(4, 5));
+        r = parseInt(val.substring(5, 6));
+    } else if (len === 8) {
+        b = parseInt(val.substring(4, 6));
+        r = parseInt(val.substring(6, 8));
+    } else if (len === 7) {
+        const b1 = parseInt(val.substring(4, 6)), r1 = parseInt(val.substring(6, 7));
+        const b2 = parseInt(val.substring(4, 5)), r2 = parseInt(val.substring(5, 7));
+        const conf6 = masterData[currentMode].config[5];
+        const combined6 = 1 / (1/conf6.b + 1/conf6.r);
+        const d1 = Math.abs(combined6 - (g / (b1 + r1)));
+        const d2 = Math.abs(combined6 - (g / (b2 + r2)));
+        if (d1 < d2) { b = b1; r = r1; } else { b = b2; r = r2; }
+    }
+    return { g, b, r };
+}
+
 function processInput() {
     const val = document.getElementById('masterInput').value;
-    if (val.length < 8) {
-        ["dispG", "dispB", "dispR"].forEach(id => document.getElementById(id).innerText = "0");
-        return;
-    }
-    const g = parseInt(val.substring(0, 4)), b = parseInt(val.substring(4, 6)), r = parseInt(val.substring(6, 8));
+    const parsed = parseInput(val);
+    if (!parsed) return;
+    const { g, b, r } = parsed;
     document.getElementById('dispG').innerText = g;
     document.getElementById('dispB').innerText = b;
     document.getElementById('dispR').innerText = r;
+    document.getElementById('probB').innerText = b > 0 ? `1/${(g/b).toFixed(1)}` : "1/--.-";
+    document.getElementById('probR').innerText = r > 0 ? `1/${(g/r).toFixed(1)}` : "1/--.-";
     if (g > 0) calculate(g, b, r);
 }
 
@@ -171,23 +275,36 @@ function calculate(G, B, R) {
         const pR = Math.pow(1/conf.r, R) * Math.exp(-G/conf.r);
         const prob = pB * pR;
         totalProb += prob;
-        return { s: conf.s, p: prob };
+        return { s: conf.s, p: prob, py: conf.py };
     });
+
     let html = "<table>";
+    let weightedPayout = 0;
     results.forEach(res => {
-        const percent = totalProb > 0 ? ((res.p / totalProb) * 100).toFixed(1) : 0;
-        html += `<tr>
-            <td class="setting-name">設定${res.s}</td>
+        const share = totalProb > 0 ? (res.p / totalProb) : 0;
+        const percent = (share * 100).toFixed(1);
+        weightedPayout += share * res.py;
+        html += `<tr><td class="setting-name"><b>設定${res.s}</b>${res.py.toFixed(1)}%</td>
             <td><div class="bar-container"><div class="bar" style="width: ${percent}%"></div></div></td>
-            <td class="percent">${percent}%</td>
-        </tr>`;
+            <td class="percent">${percent}%</td></tr>`;
     });
     document.getElementById('resultTable').innerHTML = html + "</table>";
+    
+    if (totalProb > 0) {
+        document.getElementById('avgPayout').innerText = weightedPayout.toFixed(2);
+        const diff = 2100 * (weightedPayout / 100) - 2100;
+        const diffDisplay = document.getElementById('diffValue');
+        const sign = diff >= 0 ? "+" : "";
+        const className = diff >= 0 ? "plus" : "minus";
+        diffDisplay.innerHTML = `<span class="${className}">${sign}${diff.toFixed(0)}</span><span class="diff-unit">枚</span>`;
+    } else {
+        document.getElementById('avgPayout').innerText = "---";
+        document.getElementById('diffValue').innerHTML = `---<span class="diff-unit">枚</span>`;
+    }
 }
 
 window.onload = () => {
-    document.getElementById('masterInput').focus();
-    setMode('mr');
+    setMode('my5'); // 初期起動をマイVに
 };
 </script>
 </body>
